@@ -59,6 +59,7 @@ export const useShoeboxStore = defineStore('shoebox', () => {
       currentIndex--;
 
       // Swap
+      // Знак ! после переменной (или выражения) в TypeScript — это Non-null Assertion Operator (оператор утверждения "не null").
       [cards.value[currentIndex], cards.value[randomIndex]] = [
         cards.value[randomIndex]!, cards.value[currentIndex]!];
     }
