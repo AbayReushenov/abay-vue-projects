@@ -1,80 +1,147 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
-import { nanoid } from 'nanoid'
-import type { Card, CardColor } from '@/types'
+import { ref, computed } from 'vue'
+import { supabase } from '../lib/supabase'
+import { useAuthStore } from './auth'
+import type { Card, CardColor } from '../types'
 
 export const useShoeboxStore = defineStore('shoebox', () => {
-  // --- STATE (Состояние) ---
-  // Инициализируем из localStorage, если там что-то есть
-  const cards = ref<Card[]>(JSON.parse(localStorage.getItem('nabokov-cards') || '[]'))
+  // --- STATE ---
+  const cards = ref<Card[]>([])
+  const loading = ref(false)
 
-  // --- GETTERS (Вычисляемые свойства) ---
-  // Пример аналитики: считаем общее количество слов (писатели любят метрики)
+  // Нам нужен authStore для получения user.id
+  const authStore = useAuthStore()
+
+  // --- GETTERS ---
+  // Вернули ваш счетчик слов
   const totalWordCount = computed(() => {
     return cards.value.reduce((acc, card) => {
-      // Грубый подсчет слов по пробелам
       return acc + (card.content.trim() ? card.content.trim().split(/\s+/).length : 0)
     }, 0)
   })
 
-  // --- ACTIONS (Действия) ---
+  // --- ACTIONS ---
 
-  // Добавление новой заметки
-  const addCard = (content: string = '', color: CardColor = 'default') => {
-    const newCard: Card = {
-      id: nanoid(),
-      content,
-      createdAt: Date.now(),
-      color,
-      isFocus: false
+  // 1. Загрузка (READ)
+  const fetchCards = async () => {
+    loading.value = true
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        .order('created_at', { ascending: false }) // Новые сверху
+
+      if (error) throw error
+      if (data) {
+        cards.value = data as Card[]
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки:', error)
+    } finally {
+      loading.value = false
     }
-    // В Vue mutating arrays (push/splice) - это реактивно и нормально!
-    // Не нужно делать spread: [...cards, newCard]
-    cards.value.unshift(newCard)
   }
 
-  // Удаление
-  const deleteCard = (id: string) => {
+  // 2. Добавление (CREATE)
+  const addCard = async (content: string = '', color: CardColor = 'default') => {
+    if (!authStore.user) return
+
+    // Формируем объект для БД. ID создаст сама база.
+    const payload = {
+      content,
+      color,
+      user_id: authStore.user.id
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        // Добавляем в начало массива (как unshift)
+        cards.value.unshift(data as Card)
+      }
+    } catch (error) {
+      console.error('Ошибка создания:', error)
+    }
+  }
+
+  // 3. Удаление (DELETE)
+  const deleteCard = async (id: string) => {
+    // Оптимистичное обновление: удаляем из UI сразу, чтобы была красивая анимация
+    const originalCards = [...cards.value]
     cards.value = cards.value.filter(c => c.id !== id)
+
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', id)
+
+      if (error) {
+        // Если ошибка — возвращаем карточку назад
+        cards.value = originalCards
+        throw error
+      }
+    } catch (error) {
+      console.error('Ошибка удаления:', error)
+    }
   }
 
-  // Обновление контента (two-way binding support)
-  const updateCardContent = (id: string, content: string) => {
+  // 4. Обновление (UPDATE)
+  const updateCardContent = async (id: string, content: string) => {
     const card = cards.value.find(c => c.id === id)
     if (card) {
       card.content = content
+      // Debounce (отложенная отправка) лучше делать в компоненте,
+      // но здесь отправим сразу для простоты
+      try {
+        const { error } = await supabase
+          .from('cards')
+          .update({ content })
+          .eq('id', id)
+
+        if (error) throw error
+      } catch (error) {
+        console.error('Ошибка обновления:', error)
+      }
     }
   }
 
-  // THE SHUFFLE - Метод Набокова
-  // Перемешиваем массив случайным образом для поиска вдохновения
+  // 5. Перемешивание (SHUFFLE) - Чисто клиентская функция
   const shuffleCards = () => {
-    // Используем алгоритм Фишера-Йейтса для честного шафла
-    let currentIndex = cards.value.length;
-    let randomIndex: number;
+    // 1. Создаем копию массива, чтобы не мутировать Proxy на каждом шаге цикла
+    // Это важно для производительности и избежания глюков реактивности
+    const shuffled = [...cards.value]
 
-    // While there remain elements to shuffle.
+    let currentIndex = shuffled.length
+    let randomIndex: number
+
     while (currentIndex != 0) {
-      randomIndex = Math.floor(Math.random() * currentIndex);
-      currentIndex--;
+      randomIndex = Math.floor(Math.random() * currentIndex)
+      currentIndex--
 
-      // Swap
-      // Знак ! после переменной (или выражения) в TypeScript — это Non-null Assertion Operator (оператор утверждения "не null").
-      [cards.value[currentIndex], cards.value[randomIndex]] = [
-        cards.value[randomIndex]!, cards.value[currentIndex]!];
+      // Классический обмен через временную переменную (самый безопасный способ)
+      const temp = shuffled[currentIndex]
+      shuffled[currentIndex] = shuffled[randomIndex]!
+      shuffled[randomIndex] = temp!
     }
+
+    // 2. Присваиваем уже перемешанный массив обратно в реактивную переменную
+    cards.value = shuffled
   }
 
-  // --- PERSISTENCE (Сохранение) ---
-  // Вместо middleware, просто следим за изменением cards
-  watch(cards, (newCards) => {
-    localStorage.setItem('nabokov-cards', JSON.stringify(newCards))
-  }, { deep: true })
 
-  // --- EXPORT (Возвращаем наружу то, что нужно компонентам) ---
   return {
     cards,
+    loading,
     totalWordCount,
+    fetchCards,
     addCard,
     deleteCard,
     updateCardContent,

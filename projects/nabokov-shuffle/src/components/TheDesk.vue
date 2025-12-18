@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { useShoeboxStore } from '@/stores/shoebox';
+import { onMounted } from 'vue'; // <--- Добавлено
+import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
-import { storeToRefs } from 'pinia'; // ВАЖНО для деструктуризации
+import { storeToRefs } from 'pinia';
 
 const store = useShoeboxStore();
 
 // Чтобы вытащить реактивный state/getters, используем storeToRefs.
-// Actions вытаскиваем напрямую.
-const { cards, totalWordCount } = storeToRefs(store);
-const { addCard, deleteCard, updateCardContent, shuffleCards } = store;
+const { cards, totalWordCount, loading } = storeToRefs(store); // Добавил loading
+const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards } = store;
+
+// --- ВАЖНО: Загружаем данные при открытии стола ---
+onMounted(() => {
+  fetchCards();
+})
 </script>
 
 <template>
@@ -16,6 +21,8 @@ const { addCard, deleteCard, updateCardContent, shuffleCards } = store;
     <!-- Панель управления -->
     <header class="toolbar">
       <div class="stats">
+        <!-- Добавил индикатор загрузки -->
+        <span v-if="loading">⏳ Загрузка из облака... | </span>
         Слов: <strong>{{ totalWordCount }}</strong> | Карточек: <strong>{{ cards.length }}</strong>
       </div>
       <div class="actions">
@@ -38,7 +45,7 @@ const { addCard, deleteCard, updateCardContent, shuffleCards } = store;
       </TransitionGroup>
 
       <!-- Заглушка, если пусто -->
-      <div v-if="cards.length === 0" class="empty-state">
+      <div v-if="cards.length === 0 && !loading" class="empty-state">
         <p>Коробка пуста. Начни писать свой шедевр.</p>
       </div>
     </div>
@@ -81,7 +88,6 @@ const { addCard, deleteCard, updateCardContent, shuffleCards } = store;
   transform: scale(0.8);
 }
 
-// Абсолютное позиционирование при удалении для плавной анимации соседей
 .cards-shuffle-leave-active {
   position: absolute;
 }

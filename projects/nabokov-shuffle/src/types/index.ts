@@ -2,8 +2,9 @@ export type CardColor = 'default' | 'yellow' | 'blue' | 'pink'; // Эстети�
 
 export interface Card {
   id: string;
-  content: string;      // Текст заметки
-  createdAt: number;    // Timestamp
-  color: CardColor;     // Цвет фона
-  isFocus: boolean;     // Если мы хотим развернуть карточку на весь экран
+  content: string;
+  user_id?: string;       // Поле от Supabase
+  created_at?: string;    // В базе это строка (ISO), а не число!
+  color: CardColor;
+  isFocus?: boolean;      // Опционально, если используете фокус
 }
