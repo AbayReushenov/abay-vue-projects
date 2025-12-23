@@ -1,7 +1,20 @@
 {
   "name": "abay-vue-projects",
   "version": "1.0.0",
+  "private": true,
   "description": "Vue Playground: Dynamic prototypes and projects for UI/UX experiments.",
+  "keywords": [
+    "vue",
+    "laboratory",
+    "showcase",
+    "experiments",
+    "examples",
+    "patterns"
+  ],
+  "homepage": "https://github.com/AbayReushenov/abay-vue-projects",
+  "license": "MIT",
   "author": "Abay Reushenov",
-  "license": "MIT"
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
