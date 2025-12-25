@@ -2,25 +2,51 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from './auth'
-import type { Card, CardColor } from '../types'
+import type { Card, CardColor, SortMode } from '../types'
 
 export const useShoeboxStore = defineStore('shoebox', () => {
   // --- STATE ---
   const cards = ref<Card[]>([])
   const loading = ref(false)
+  const sortMode = ref<SortMode>('custom') // <--- По умолчанию "По порядку"
 
   // Нам нужен authStore для получения user.id
   const authStore = useAuthStore()
 
   // --- GETTERS ---
-  // Вернули ваш счетчик слов
+  // Счетчик слов
   const totalWordCount = computed(() => {
     return cards.value.reduce((acc, card) => {
       return acc + (card.content.trim() ? card.content.trim().split(/\s+/).length : 0)
     }, 0)
   })
 
+  // --- INTERNAL HELPER (Внутренняя функция сортировки) ---
+  const applySort = () => {
+    if (sortMode.value === 'newest') {
+      // Сортировка строк (ISO date) работает корректно через localeCompare
+      // или через new Date(). Но для строк ISO (2025-12-...) достаточно сравнения строк.
+      cards.value.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    }
+    else if (sortMode.value === 'oldest') {
+      cards.value.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+    }
+    else if (sortMode.value === 'custom') {
+      // Сначала по order, если равны — то новые сверху
+      cards.value.sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order
+        return (b.created_at || '').localeCompare(a.created_at || '')
+      })
+    }
+  }
+
   // --- ACTIONS ---
+
+  // Смена режима (вызывается из UI)
+  const setSortMode = (mode: SortMode) => {
+    sortMode.value = mode
+    applySort() // Сразу применяем сортировку
+  }
 
   // 1. Загрузка (READ)
   const fetchCards = async () => {
@@ -30,15 +56,14 @@ export const useShoeboxStore = defineStore('shoebox', () => {
         .from('cards')
         .select('*')
         .select('*')
-        // Приоритет 1: Порядок пользователя (сначала маленькие числа, например -5, потом 0, 1, 2)
+        // Загружаем всегда в "нативном" порядке, чтобы данные были консистентны
         .order('order', { ascending: true })
-        // Приоритет 2: Если order совпал (например у всех 0), сортируем по дате создания
-        // ascending: false означает "новые сверху" (от большей даты к меньшей)
         .order('created_at', { ascending: false })
 
       if (error) throw error
       if (data) {
         cards.value = data as Card[]
+        applySort() // <--- Применяем текущий выбранный режим после загрузки
       }
     } catch (error) {
       console.error('Ошибка загрузки:', error)
@@ -179,6 +204,9 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     // 2. Присваиваем уже перемешанный массив обратно в реактивную переменную
     cards.value = shuffled
 
+    // ВАЖНО: Переключаем режим на Custom, чтобы пользователь видел результат перемешивания
+    sortMode.value = 'custom'
+
     // Сохраняем в базу!
     await persistOrder()
   }
@@ -188,6 +216,8 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     cards,
     loading,
     totalWordCount,
+    sortMode,    // <--- Экспортируем
+    setSortMode, // <--- Экспортируем
     persistOrder,
     fetchCards,
     addCard,

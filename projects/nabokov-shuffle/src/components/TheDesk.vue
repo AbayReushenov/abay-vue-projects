@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'; // <--- Добавлено
+import { onMounted } from 'vue';
 import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
 import { storeToRefs } from 'pinia';
@@ -7,8 +7,8 @@ import { storeToRefs } from 'pinia';
 const store = useShoeboxStore();
 
 // Чтобы вытащить реактивный state/getters, используем storeToRefs.
-const { cards, totalWordCount, loading } = storeToRefs(store); // Добавил loading
-const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards } = store;
+const { cards, totalWordCount, loading, sortMode } = storeToRefs(store); // Добавил loading
+const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode } = store;
 
 // --- ВАЖНО: Загружаем данные при открытии стола ---
 onMounted(() => {
@@ -20,11 +20,37 @@ onMounted(() => {
   <div class="desk-container">
     <!-- Панель управления -->
     <header class="toolbar">
+      <!-- Блок статистики -->
       <div class="stats">
         <!-- Добавил индикатор загрузки -->
         <span v-if="loading">⏳ Загрузка из облака... | </span>
         Слов: <strong>{{ totalWordCount }}</strong> | Карточек: <strong>{{ cards.length }}</strong>
       </div>
+
+      <!-- Блок Сортировки (НОВОЕ) -->
+      <div class="sort-controls">
+        <span class="label">Вид:</span>
+        <button
+          :class="{ active: sortMode === 'newest' }"
+          @click="setSortMode('newest')"
+        >
+          Свежие
+        </button>
+        <button
+          :class="{ active: sortMode === 'oldest' }"
+          @click="setSortMode('oldest')"
+        >
+          Старые
+        </button>
+        <button
+          :class="{ active: sortMode === 'custom' }"
+          @click="setSortMode('custom')"
+        >
+          Мой порядок
+        </button>
+      </div>
+
+    <!-- Блок Действий -->
       <div class="actions">
         <button class="btn-primary" @click="addCard()">+ Новая заметка</button>
         <button class="btn-secondary" @click="shuffleCards()">🎲 Перемешать (Shuffle)</button>
@@ -117,5 +143,58 @@ onMounted(() => {
   color: #aaa;
   margin-top: 3rem;
   font-style: italic;
+}
+
+// Стили для сортировки
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f5f5f5;
+  padding: 4px;
+  border-radius: 6px;
+
+  .label {
+    font-size: 0.85rem;
+    color: #888;
+    margin-left: 8px;
+    margin-right: 4px;
+  }
+
+  button {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #666;
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba(0,0,0,0.05);
+    }
+
+    &.active {
+      background: white;
+      color: #333;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+  }
+}
+
+
+// Адаптив: если места мало, можно перенести сортировку на новую строку
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .sort-controls {
+    justify-content: center;
+  }
 }
 </style>

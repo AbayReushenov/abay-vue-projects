@@ -9,3 +9,5 @@ export interface Card {
   isFocus?: boolean;      // Опционально, если используете фокус
   order: number;          // <-- Новое поле
 }
+
+export type SortMode = 'custom' | 'newest' | 'oldest';

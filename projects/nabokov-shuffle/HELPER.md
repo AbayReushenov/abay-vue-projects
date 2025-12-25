@@ -262,3 +262,274 @@ Supabase (и SQL в целом) позволяет указывать цепоч
     }
   }
 ```
+
+##  Улучшения UX. Сортировка на клиенте (в браузере).
+
+1. Типы: Добавляем тип для режимов сортировки.
+
+2. Store: Добавляем состояние currentSort и логику сортировки.
+
+3. UI: Добавляем кнопки переключения.
+
+1. Обновляем типы (src/types/index.ts)
+Добавим строгий тип, чтобы не ошибиться в названиях режимов.
+```typescript
+// src/types/index.ts
+
+export type SortMode = 'custom' | 'newest' | 'oldest';
+```
+2. Обновляем Store (src/stores/shoebox.ts)
+Нам нужно добавить переменную состояния sortMode и функцию, которая сортирует массив cards в зависимости от выбранного режима.
+
+Важно: Когда мы нажимаем "Shuffle", режим должен автоматически переключаться на 'custom', так как перемешивание — это и есть создание кастомного порядка.
+
+```typescript
+// src/stores/shoebox.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { supabase } from '../lib/supabase'
+import { useAuthStore } from './auth'
+import type { Card, CardColor, SortMode } from '../types' // <--- Добавили SortMode
+
+export const useShoeboxStore = defineStore('shoebox', () => {
+  // --- STATE ---
+  const cards = ref<Card[]>([])
+  const loading = ref(false)
+  const sortMode = ref<SortMode>('custom') // <--- По умолчанию "По порядку"
+
+  const authStore = useAuthStore()
+
+  // --- INTERNAL HELPER (Внутренняя функция сортировки) ---
+  const applySort = () => {
+    if (sortMode.value === 'newest') {
+      // Сортировка строк (ISO date) работает корректно через localeCompare
+      // или через new Date(). Но для строк ISO (2025-12-...) достаточно сравнения строк.
+      cards.value.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    }
+    else if (sortMode.value === 'oldest') {
+      cards.value.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+    }
+    else if (sortMode.value === 'custom') {
+      // Сначала по order, если равны — то новые сверху
+      cards.value.sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order
+        return (b.created_at || '').localeCompare(a.created_at || '')
+      })
+    }
+  }
+
+  // --- ACTIONS ---
+
+  // 1. Смена режима (вызывается из UI)
+  const setSortMode = (mode: SortMode) => {
+    sortMode.value = mode
+    applySort() // Сразу применяем сортировку
+  }
+
+  // 2. Fetch (оставляем как было, но в конце применяем сортировку)
+  const fetchCards = async () => {
+    loading.value = true
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        // Загружаем всегда в "нативном" порядке, чтобы данные были консистентны
+        .order('order', { ascending: true })
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      if (data) {
+        cards.value = data as Card[]
+        applySort() // <--- Применяем текущий выбранный режим после загрузки
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки:', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 3. Shuffle (автоматически включает режим Custom)
+  const shuffleCards = async () => {
+    // ... ваш код алгоритма Фишера-Йейтса ...
+    const shuffled = [...cards.value]
+    let currentIndex = shuffled.length
+    let randomIndex: number
+    while (currentIndex != 0) {
+      randomIndex = Math.floor(Math.random() * currentIndex)
+      currentIndex--
+      const temp = shuffled[currentIndex]
+      shuffled[currentIndex] = shuffled[randomIndex]!
+      shuffled[randomIndex] = temp!
+    }
+
+    // Обновляем индексы
+    shuffled.forEach((card, index) => { card.order = index })
+
+    cards.value = shuffled
+
+    // ВАЖНО: Переключаем режим на Custom, чтобы пользователь видел результат перемешивания
+    sortMode.value = 'custom'
+
+    await persistOrder()
+  }
+
+  // ... остальные методы (addCard, deleteCard, persistOrder) без изменений ...
+  // В addCard можно добавить вызов applySort() в конце, если хотите строгого соблюдения порядка.
+
+  return {
+    cards,
+    loading,
+    sortMode,    // <--- Экспортируем
+    setSortMode, // <--- Экспортируем
+    fetchCards,
+    addCard,
+    deleteCard,
+    shuffleCards,
+    persistOrder
+  }
+})
+```
+
+
+3. Обновляем UI (src/components/TheDesk.vue)
+Добавим группу кнопок в шапку. Используем условный класс :class="{ active: ... }", чтобы подсвечивать выбранный режим.
+
+```vue
+<!-- src/components/TheDesk.vue -->
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { useShoeboxStore } from '../stores/shoebox';
+import NoteCard from './NoteCard.vue';
+import { storeToRefs } from 'pinia';
+
+const store = useShoeboxStore();
+// Достаем sortMode через storeToRefs, чтобы он был реактивным
+const { cards, totalWordCount, loading, sortMode } = storeToRefs(store);
+const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode } = store;
+
+onMounted(() => {
+  fetchCards();
+})
+</script>
+
+<template>
+  <div class="desk-container">
+    <header class="toolbar">
+      <!-- Блок статистики -->
+      <div class="stats">
+        <span v-if="loading">⏳ Загрузка... | </span>
+        Слов: <strong>{{ totalWordCount }}</strong> |
+        Карточек: <strong>{{ cards.length }}</strong>
+      </div>
+
+      <!-- Блок Сортировки (НОВОЕ) -->
+      <div class="sort-controls">
+        <span class="label">Вид:</span>
+        <button
+          :class="{ active: sortMode === 'newest' }"
+          @click="setSortMode('newest')"
+        >
+          Свежие
+        </button>
+        <button
+          :class="{ active: sortMode === 'oldest' }"
+          @click="setSortMode('oldest')"
+        >
+          Старые
+        </button>
+        <button
+          :class="{ active: sortMode === 'custom' }"
+          @click="setSortMode('custom')"
+        >
+          Мой порядок
+        </button>
+      </div>
+
+      <!-- Блок Действий -->
+      <div class="actions">
+        <button class="btn-primary" @click="addCard()">+ Заметка</button>
+        <button class="btn-secondary" @click="shuffleCards()">🎲 Shuffle</button>
+      </div>
+    </header>
+
+    <div class="desk-surface">
+      <TransitionGroup name="cards-shuffle" tag="div" class="cards-grid">
+        <NoteCard
+          v-for="card in cards"
+          :key="card.id"
+          :card="card"
+          @remove="deleteCard"
+          @update="updateCardContent"
+        />
+      </TransitionGroup>
+
+      <!-- Empty state... -->
+    </div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+// ... ваши старые стили ...
+
+// Стили для сортировки
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f5f5f5;
+  padding: 4px;
+  border-radius: 6px;
+
+  .label {
+    font-size: 0.85rem;
+    color: #888;
+    margin-left: 8px;
+    margin-right: 4px;
+  }
+
+  button {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #666;
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba(0,0,0,0.05);
+    }
+
+    &.active {
+      background: white;
+      color: #333;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+  }
+}
+
+// Адаптив: если места мало, можно перенести сортировку на новую строку
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .sort-controls {
+    justify-content: center;
+  }
+}
+</style>
+```
+
+
+## Как это работает:
+1. Вы нажимаете "Свежие": Pinia мгновенно пересортировывает массив cards по дате. Поле order в базе не меняется, меняется только отображение.
+
+2. Вы нажимаете "Shuffle": Карточки перемешиваются, сохраняются в базу, и режим автоматически переключается на "Мой порядок" (Custom).
+
+3. Вы нажимаете "Мой порядок": Карточки выстраиваются так, как они лежат в базе (по полю order).
