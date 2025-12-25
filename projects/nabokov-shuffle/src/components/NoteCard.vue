@@ -1,28 +1,77 @@
 <script setup lang="ts">
-import type { Card } from '@/types';
+import { computed } from 'vue';
+import type { Card, CardColor } from '@/types';
 
-defineProps<{
+const props = defineProps<{
   card: Card
 }>();
 
 const emit = defineEmits<{
   (e: 'remove', id: string): void
   (e: 'update', id: string, content: string): void
+  (e: 'changeColor', id: string, color: CardColor): void
 }>();
+
+// Форматирование даты
+const formattedDate = computed(() => {
+  if (!props.card.created_at) return '';
+
+  const date = new Date(props.card.created_at);
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short', // "дек"
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+});
+
+// Доступные цвета для палитры
+const colors: CardColor[] = ['default', 'yellow', 'blue', 'pink'];
+
+// Маппинг цветов для отображения кружков (CSS background)
+const colorMap: Record<CardColor, string> = {
+  default: '#fdfbf7', // Белый/Бумажный
+  yellow: '#fff9c4',
+  blue: '#bbdefb',
+  pink: '#f8bbd0'
+};
 </script>
 
 <template>
   <div class="note-card" :class="`is-${card.color}`">
+    <!-- HEADER: Дата + ID + Кнопки -->
     <div class="card-header">
-      <span class="card-id">#{{ card.id.slice(0, 4) }}</span>
-      <button class="btn-close" @click="emit('remove', card.id)" aria-label="Удалить">×</button>
+      <div class="header-left">
+        <!-- Вернули ID -->
+        <span class="card-id">#{{ card.id.slice(0, 4) }}</span>
+        <span class="divider">•</span>
+        <span class="card-date">{{ formattedDate }}</span>
+      </div>
+
+      <div class="header-right">
+        <!-- Палитра цветов -->
+        <div class="color-picker">
+          <button
+            v-for="color in colors"
+            :key="color"
+            class="color-dot"
+            :class="{ active: card.color === color }"
+            :style="{ backgroundColor: colorMap[color] }"
+            @click.stop="emit('changeColor', card.id, color)"
+            :title="`Цвет: ${color}`"
+          ></button>
+        </div>
+
+        <button class="btn-close" @click.stop="emit('remove', card.id)" aria-label="Удалить">×</button>
+      </div>
     </div>
 
     <textarea
       class="card-content"
       :value="card.content"
       @input="emit('update', card.id, ($event.target as HTMLTextAreaElement).value)"
-      placeholder="Пиши здесь..."
+      placeholder="Мысль..."
     ></textarea>
   </div>
 </template>
@@ -42,11 +91,11 @@ const emit = defineEmits<{
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box; /* Чтобы padding не ломал сетку */
 
-  // Цветовые схемы
+  /* Цветовые темы (фон всей карточки) */
   &.is-default { background: #fdfbf7; border: 1px solid #efebe9; }
-  &.is-yellow  { background: #fffde7; }
-  &.is-blue    { background: #e3f2fd; }
-  &.is-pink    { background: #fce4ec; }
+  &.is-yellow  { background: #fffde7; } // Светло-желтый
+  &.is-blue    { background: #e3f2fd; } // Светло-голубой
+  &.is-pink    { background: #fce4ec; } // Светло-розовый
 
   /* На десктопе при наведении легкий подъем */
   @media (hover: hover) {
@@ -61,13 +110,11 @@ const emit = defineEmits<{
 .card-header {
   display: flex;
   justify-content: space-between;
+  align-items: center; /* Выравнивание по центру */
   margin-bottom: 0.75rem;
-  color: #90a4ae;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   cursor: grab;
+  /* Запрещаем выделение текста в хедере, чтобы не мешало драгу */
+  user-select: none;
 }
 
 /* Когда тащим, курсор меняется на "схваченную руку" */
@@ -75,15 +122,64 @@ const emit = defineEmits<{
   cursor: grabbing;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-date {
+  font-size: 0.75rem;
+  color: #90a4ae;
+  font-weight: 500;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* --- Color Picker --- */
+.color-picker {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.5);
+  padding: 2px;
+  border-radius: 12px;
+  /* transition: opacity 0.2s; */
+  /* opacity: 0.5; // Можно сделать полупрозрачным по умолчанию */
+}
+
+.color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.2s, border-color 0.2s;
+
+  &:hover {
+    transform: scale(1.2);
+    border-color: rgba(0,0,0,0.3);
+  }
+
+  &.active {
+    border: 2px solid #546e7a; /* Выделение активного цвета */
+    transform: scale(1.1);
+  }
+}
+
 .btn-close {
   background: none;
   border: none;
   cursor: pointer;
   font-size: 1.5rem;
-  line-height: 0.5;
+  line-height: 1;
   color: #b0bec5;
-  padding: 0 5px; /* Увеличим область клика для пальцев */
-  transition: color 0.2s;
+  padding: 0;
+  margin-left: 4px;
   &:hover { color: #ef5350; }
 }
 
@@ -94,14 +190,39 @@ const emit = defineEmits<{
   background: transparent;
   resize: none;
   font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 1.1rem; /* Чуть крупнее текст для чтения */
+  font-size: 1.1rem;
   line-height: 1.6;
   outline: none;
-  color: #2c3e50;
+  color: #37474f;
 
   &::placeholder {
     font-style: italic;
     color: #cfd8dc;
   }
+}
+
+/* чтобы ID выглядел красиво */
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Расстояние между элементами */
+  font-family: monospace; /* Моноширинный шрифт для "технических" данных */
+}
+
+.card-id {
+  font-weight: bold;
+  color: #78909c; /* Серо-голубой цвет */
+  font-size: 0.8rem;
+}
+
+.divider {
+  color: #cfd8dc; /* Очень светлый разделитель */
+  font-size: 0.8rem;
+}
+
+.card-date {
+  font-size: 0.75rem;
+  color: #90a4ae;
 }
 </style>

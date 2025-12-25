@@ -7,7 +7,7 @@ import NoteCard from './NoteCard.vue';
 
 const store = useShoeboxStore();
 const { cards, totalWordCount, loading, sortMode } = storeToRefs(store);
-const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder } = store;
+const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder, changeCardColor} = store;
 
 onMounted(() => {
   fetchCards();
@@ -76,6 +76,7 @@ const onDragEnd = () => {
           :card="card"
           @remove="deleteCard"
           @update="updateCardContent"
+          @changeColor="changeCardColor"
         />
       </VueDraggable>
 

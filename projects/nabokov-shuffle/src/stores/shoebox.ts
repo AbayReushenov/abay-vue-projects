@@ -27,11 +27,9 @@ export const useShoeboxStore = defineStore('shoebox', () => {
       // Сортировка строк (ISO date) работает корректно через localeCompare
       // или через new Date(). Но для строк ISO (2025-12-...) достаточно сравнения строк.
       cards.value.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-    }
-    else if (sortMode.value === 'oldest') {
+    } else if (sortMode.value === 'oldest') {
       cards.value.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
-    }
-    else if (sortMode.value === 'custom') {
+    } else if (sortMode.value === 'custom') {
       // Сначала по order, если равны — то новые сверху
       cards.value.sort((a, b) => {
         if (a.order !== b.order) return a.order - b.order
@@ -51,22 +49,22 @@ export const useShoeboxStore = defineStore('shoebox', () => {
   // НОВОЕ ACTION: Обновление порядка после Drag-n-Drop
   const updateOrder = async (newCards: Card[]) => {
     // 1. Обновляем локальный стейт
-    cards.value = newCards;
+    cards.value = newCards
 
     // 2. Если режим сортировки не 'custom', переключаем на 'custom'
     // (ведь пользователь только что создал свой порядок руками)
     if (sortMode.value !== 'custom') {
-      sortMode.value = 'custom';
+      sortMode.value = 'custom'
     }
 
     // 3. Пересчитываем индексы order для всех карточек
     cards.value.forEach((card, index) => {
-      card.order = index;
-    });
+      card.order = index
+    })
 
     // 4. Отправляем в базу (в фоне)
-    await persistOrder();
-  };
+    await persistOrder()
+  }
 
   // 1. Загрузка (READ)
   const fetchCards = async () => {
@@ -98,24 +96,19 @@ export const useShoeboxStore = defineStore('shoebox', () => {
 
     // Ищем текущий МИНИМАЛЬНЫЙ order среди всех карточек
     // Если карточек нет, начинаем с 0
-    const currentMinOrder = cards.value.length > 0
-      ? Math.min(...cards.value.map(c => c.order))
-      : 0
+    const currentMinOrder =
+      cards.value.length > 0 ? Math.min(...cards.value.map((c) => c.order)) : 0
 
     // Формируем объект для БД. ID создаст сама база.
     const payload = {
       content,
       color,
       user_id: authStore.user.id,
-      order: currentMinOrder - 1
+      order: currentMinOrder - 1,
     }
 
     try {
-      const { data, error } = await supabase
-        .from('cards')
-        .insert(payload)
-        .select()
-        .single()
+      const { data, error } = await supabase.from('cards').insert(payload).select().single()
 
       if (error) throw error
 
@@ -132,13 +125,10 @@ export const useShoeboxStore = defineStore('shoebox', () => {
   const deleteCard = async (id: string) => {
     // Оптимистичное обновление: удаляем из UI сразу, чтобы была красивая анимация
     const originalCards = [...cards.value]
-    cards.value = cards.value.filter(c => c.id !== id)
+    cards.value = cards.value.filter((c) => c.id !== id)
 
     try {
-      const { error } = await supabase
-        .from('cards')
-        .delete()
-        .eq('id', id)
+      const { error } = await supabase.from('cards').delete().eq('id', id)
 
       if (error) {
         // Если ошибка — возвращаем карточку назад
@@ -152,16 +142,13 @@ export const useShoeboxStore = defineStore('shoebox', () => {
 
   // 4. Обновление (UPDATE)
   const updateCardContent = async (id: string, content: string) => {
-    const card = cards.value.find(c => c.id === id)
+    const card = cards.value.find((c) => c.id === id)
     if (card) {
       card.content = content
       // Debounce (отложенная отправка) лучше делать в компоненте,
       // но здесь отправим сразу для простоты
       try {
-        const { error } = await supabase
-          .from('cards')
-          .update({ content })
-          .eq('id', id)
+        const { error } = await supabase.from('cards').update({ content }).eq('id', id)
 
         if (error) throw error
       } catch (error) {
@@ -179,16 +166,14 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     const updates = cards.value.map((card, index) => ({
       id: card.id,
       user_id: authStore.user!.id, // RLS требует указания владельца при upsert
-      content: card.content,       // Upsert требует обязательных полей, если они not null
-      color: card.color,           // (зависит от настроек базы, часто нужен полный объект)
-      order: index                 // <--- Вот наш новый порядок!
+      content: card.content, // Upsert требует обязательных полей, если они not null
+      color: card.color, // (зависит от настроек базы, часто нужен полный объект)
+      order: index, // <--- Вот наш новый порядок!
     }))
 
     // Оптимизация: Supabase upsert обновляет данные, если ID совпадает
     try {
-      const { error } = await supabase
-        .from('cards')
-        .upsert(updates) // Отправляем пачкой
+      const { error } = await supabase.from('cards').upsert(updates) // Отправляем пачкой
 
       if (error) throw error
     } catch (error) {
@@ -231,6 +216,23 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     await persistOrder()
   }
 
+  const changeCardColor = async (id: string, newColor: CardColor) => {
+    // 1. Оптимистичное обновление UI
+    const card = cards.value.find((c) => c.id === id)
+    if (card) {
+      card.color = newColor
+    }
+
+    try {
+      // 2. Отправка в БД
+      const { error } = await supabase.from('cards').update({ color: newColor }).eq('id', id)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Ошибка смены цвета:', error)
+      // Можно откатить цвет обратно, если нужно
+    }
+  }
 
   return {
     cards,
@@ -239,11 +241,12 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     sortMode,
     setSortMode,
     updateOrder, // экспортировать новый метод
+    changeCardColor,
     persistOrder,
     fetchCards,
     addCard,
     deleteCard,
     updateCardContent,
-    shuffleCards
+    shuffleCards,
   }
 })
