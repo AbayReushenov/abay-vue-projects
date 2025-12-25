@@ -67,6 +67,12 @@ const emit = defineEmits<{
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: grab;
+}
+
+/* Когда тащим, курсор меняется на "схваченную руку" */
+.card-header:active {
+  cursor: grabbing;
 }
 
 .btn-close {

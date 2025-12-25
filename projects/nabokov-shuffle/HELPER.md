@@ -758,3 +758,91 @@ const onDragEnd = () => {
 }
 </style>
 ```
+
+##  4. Доработка NoteCard.vue (чтобы текст не мешал перетаскиванию)
+Есть нюанс: если пользователь попытается потянуть за textarea, браузер может подумать, что он хочет выделить текст, а не перетащить карточку.
+
+Лучшая практика — разрешить перетаскивание за заголовок карточки (card-header), а область текста оставить для ввода.
+
+Откройте src/components/NoteCard.vue и добавьте cursor: grab заголовку.
+
+В NoteCard.vue можно ничего не менять логически, библиотека vue-draggable-plus умная. Но если вы заметите, что текст сложно выделять, можно добавить пропсу handle=".card-header" в компонент VueDraggable в файле TheDesk.vue.
+
+Рекомендую для начала попробовать без handle (тянуть за любое место). Если будет неудобно выделять текст внутри карточки, тогда добавим хэндл.
+
+Как проверить:
+Перезагрузите страницу.
+
+Нажмите "Мой порядок" (или Custom).
+
+Схватите карточку мышкой и перетащите на другое место.
+
+Отпустите.
+
+Тест сохранения: Перезагрузите страницу (F5). Карточки должны остаться в том порядке, в который вы их перетащили.
+
+Нужно добавить это правило в секцию <style> внизу файла, внутрь класса .card-header.
+
+```vue
+<!-- src/components/NoteCard.vue -->
+<template>
+  <div class="note-card" :class="`is-${card.color}`">
+    <!-- Оставляем HTML чистым -->
+    <div class="card-header">
+      <span class="card-id">#{{ card.id.slice(0, 4) }}</span>
+      <button class="btn-close" @click="emit('remove', card.id)" aria-label="Удалить">×</button>
+    </div>
+
+    <textarea
+      class="card-content"
+      :value="card.content"
+      @input="emit('update', card.id, ($event.target as HTMLTextAreaElement).value)"
+      placeholder="Пиши здесь..."
+    ></textarea>
+  </div>
+</template>
+
+<style scoped lang="scss">
+/* ... стили карточки ... */
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  color: #90a4ae;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  /* ВОТ СЮДА ДОБАВЛЯЕМ КУРСОР: */
+  cursor: grab;
+}
+
+/* Когда тащим, курсор меняется на "схваченную руку" */
+.card-header:active {
+  cursor: grabbing;
+}
+
+/* ... остальные стили ... */
+</style>
+```
+Что это даст: Когда пользователь наведет мышку на заголовок карточки (там, где ID), курсор превратится в "ладошку" (grab), подсказывая, что за это место можно потянуть.
+
+Важное дополнение к TheDesk.vue
+Чтобы можно было таскать только за заголовок (а текст спокойно выделять мышкой), нужно в файле src/components/TheDesk.vue добавить параметр handle.
+
+```vue
+<!-- src/components/TheDesk.vue -->
+<VueDraggable
+  v-model="cards"
+  :animation="200"
+  class="cards-grid"
+  ghost-class="ghost"
+  handle=".card-header"
+  @end="onDragEnd"
+>
+  <!-- ... -->
+</VueDraggable>
+```
+Строка handle=".card-header" говорит библиотеке: "Начинай перетаскивание, только если пользователь нажал на элемент с классом .card-header". Это очень улучшает UX, так как позволяет нормально работать с текстом в textarea.

@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
+import { VueDraggable } from 'vue-draggable-plus';
 import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
-import { storeToRefs } from 'pinia';
 
 const store = useShoeboxStore();
 const { cards, totalWordCount, loading, sortMode } = storeToRefs(store);
-const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode } = store;
+const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder } = store;
 
 onMounted(() => {
   fetchCards();
 })
+
+// Обработчик окончания перетаскивания
+const onDragEnd = () => {
+  updateOrder(cards.value);
+}
 </script>
 
 <template>
@@ -42,7 +48,28 @@ onMounted(() => {
     </header>
 
     <div class="desk-surface">
-      <TransitionGroup name="cards-shuffle" tag="div" class="cards-grid">
+        <!--
+        ЗАМЕНА TransitionGroup НА VueDraggable
+        v-model="cards" - двусторонняя связь с массивом
+        :animation="150" - время анимации сдвига (мс)
+        handle=".drag-handle" - (Опционально) если хотите тянуть только за иконку.
+                                Пока оставим тянуть за всю карточку, кроме текста.
+        class="cards-grid" - тот же класс сетки
+        @end="onDragEnd" - вызываем сохранение, когда бросили
+      -->
+        <VueDraggable
+          v-model="cards"
+          :animation="200"
+          class="cards-grid"
+          ghost-class="ghost"
+          handle=".card-header"
+          @end="onDragEnd"
+        >
+        <!--
+           ВАЖНО: Внутри VueDraggable нужен один корневой элемент для цикла,
+           либо компонент должен принимать аттрибуты.
+           NoteCard принимает класс и style нормально.
+        -->
         <NoteCard
           v-for="card in cards"
           :key="card.id"
@@ -50,8 +77,9 @@ onMounted(() => {
           @remove="deleteCard"
           @update="updateCardContent"
         />
-      </TransitionGroup>
+      </VueDraggable>
 
+      <!-- Empty State -->
       <div v-if="cards.length === 0 && !loading" class="empty-state">
         <p>Коробка пуста.</p>
         <button class="btn-text" @click="addCard()">Создать первую карточку</button>
@@ -254,5 +282,30 @@ onMounted(() => {
   text-align: center;
   color: #90a4ae;
   margin-top: 4rem;
+}
+
+/* Стили для Drag-n-Drop */
+
+/* Класс "призрака" - место, куда упадет карточка */
+.ghost {
+  opacity: 0.4;
+  background: #e0e0e0;
+  border: 2px dashed #999;
+}
+
+/* При перетаскивании курсор меняется */
+.cards-grid {
+  /* Важно для работы библиотеки внутри Grid */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }
 </style>
