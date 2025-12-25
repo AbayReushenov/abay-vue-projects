@@ -38,3 +38,6 @@ __screenshots__/
 # Passwords
 .env
 .env.local
+
+# Helpers
+HELPER.md
