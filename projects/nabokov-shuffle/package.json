@@ -20,6 +20,7 @@
     "nanoid": "^5.1.6",
     "pinia": "^3.0.4",
     "vue": "^3.5.25",
+    "vue-draggable-plus": "^0.6.0",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {

@@ -48,6 +48,26 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     applySort() // Сразу применяем сортировку
   }
 
+  // НОВОЕ ACTION: Обновление порядка после Drag-n-Drop
+  const updateOrder = async (newCards: Card[]) => {
+    // 1. Обновляем локальный стейт
+    cards.value = newCards;
+
+    // 2. Если режим сортировки не 'custom', переключаем на 'custom'
+    // (ведь пользователь только что создал свой порядок руками)
+    if (sortMode.value !== 'custom') {
+      sortMode.value = 'custom';
+    }
+
+    // 3. Пересчитываем индексы order для всех карточек
+    cards.value.forEach((card, index) => {
+      card.order = index;
+    });
+
+    // 4. Отправляем в базу (в фоне)
+    await persistOrder();
+  };
+
   // 1. Загрузка (READ)
   const fetchCards = async () => {
     loading.value = true
@@ -216,8 +236,9 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     cards,
     loading,
     totalWordCount,
-    sortMode,    // <--- Экспортируем
-    setSortMode, // <--- Экспортируем
+    sortMode,
+    setSortMode,
+    updateOrder, // экспортировать новый метод
     persistOrder,
     fetchCards,
     addCard,

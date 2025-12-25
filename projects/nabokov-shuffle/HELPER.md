@@ -583,3 +583,66 @@ grid-template-columns: 1fr; заставляет карточки занимат
 Увеличил шрифт в textarea до 1.1rem (на телефонах мелкий текст неудобно читать/писать).
 
 Заменил шрифт serif на 'Georgia', 'Times New Roman' для сохранения "книжной" эстетики, но с хорошей читаемостью.
+
+
+## Drag and Drop во Vue 3 ( vue-draggable-plus )
+
+Для реализации Drag and Drop во Vue 3 стандартом де-факто является библиотека SortableJS и ее обертка vue-draggable-plus (это современная, типизированная версия, работающая лучше старого vuedraggable).
+
+Она отлично работает и на десктопе, и на мобильных устройствах (тач-события), что важно для вашего ТЗ.
+
+# План (Drag and Drop):
+- Установка библиотеки.
+
+- Обновление TheDesk.vue (заменяем TransitionGroup на компонент Draggable).
+
+- Обновление shoebox.ts (добавляем action для обработки завершения перетаскивания и сохранения нового порядка в БД).
+
+1. Установка
+Откройте терминал в папке проекта и выполните:
+```bash
+npm install vue-draggable-plus
+```
+
+2. Обновление Store (src/stores/shoebox.ts)
+Метод, будет вызываться после того, как пользователь отпустил карточку. Этот метод должен:
+- Обновить cards в сторе (это делает сама библиотека через v-model, но нам нужно подтвердить).
+- Пересчитать индексы order у всех карточек (0, 1, 2...).
+- Отправить новый порядок в Supabase.
+
+Изменения в shoebox.ts:
+```typescript
+// src/stores/shoebox.ts
+// ... импорты
+
+export const useShoeboxStore = defineStore('shoebox', () => {
+  // ... state
+
+  // НОВОЕ ACTION: Обновление порядка после Drag-n-Drop
+  const updateOrder = async (newCards: Card[]) => {
+    // 1. Обновляем локальный стейт
+    cards.value = newCards;
+
+    // 2. Если режим сортировки не 'custom', переключаем на 'custom'
+    // (ведь пользователь только что создал свой порядок руками)
+    if (sortMode.value !== 'custom') {
+      sortMode.value = 'custom';
+    }
+
+    // 3. Пересчитываем индексы order для всех карточек
+    cards.value.forEach((card, index) => {
+      card.order = index;
+    });
+
+    // 4. Отправляем в базу (в фоне)
+    await persistOrder();
+  };
+
+  // ... остальные методы
+
+  return {
+    // ... экспорты
+    updateOrder, // <--- Не забудьте экспортировать
+  };
+});
+```
