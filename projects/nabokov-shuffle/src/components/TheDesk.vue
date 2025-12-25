@@ -224,7 +224,9 @@ const onDragEnd = () => {
   display: grid;
   /* Магия гридов: */
   /* minmax(280px, 1fr) означает: колонки не меньше 280px, но если места больше — растягивайся */
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* Было: minmax(320px, 1fr) или 280px */
+  /* Стало: minmax(360px, 1fr) */
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1.5rem;
   width: 100%;
 }
@@ -298,7 +300,8 @@ const onDragEnd = () => {
 .cards-grid {
   /* Важно для работы библиотеки внутри Grid */
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  // grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); 
   gap: 1.5rem;
   width: 100%;
 }
