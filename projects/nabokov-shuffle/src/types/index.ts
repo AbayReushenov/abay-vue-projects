@@ -7,4 +7,5 @@ export interface Card {
   created_at?: string;    // В базе это строка (ISO), а не число!
   color: CardColor;
   isFocus?: boolean;      // Опционально, если используете фокус
+  order: number;          // <-- Новое поле
 }

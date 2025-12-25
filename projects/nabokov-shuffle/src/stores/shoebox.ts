@@ -29,7 +29,8 @@ export const useShoeboxStore = defineStore('shoebox', () => {
       const { data, error } = await supabase
         .from('cards')
         .select('*')
-        .order('created_at', { ascending: false }) // Новые сверху
+        // .order('created_at', { ascending: false }) // Новые сверху
+        .order('order', { ascending: true }) // <--- Сортируем по порядку!
 
       if (error) throw error
       if (data) {
@@ -46,11 +47,18 @@ export const useShoeboxStore = defineStore('shoebox', () => {
   const addCard = async (content: string = '', color: CardColor = 'default') => {
     if (!authStore.user) return
 
+    // Ищем текущий МИНИМАЛЬНЫЙ order среди всех карточек
+    // Если карточек нет, начинаем с 0
+    const currentMinOrder = cards.value.length > 0
+      ? Math.min(...cards.value.map(c => c.order))
+      : 0
+
     // Формируем объект для БД. ID создаст сама база.
     const payload = {
       content,
       color,
-      user_id: authStore.user.id
+      user_id: authStore.user.id,
+      order: currentMinOrder - 1
     }
 
     try {
@@ -113,8 +121,35 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     }
   }
 
+  // Сохранение порядка на сервере
+  const persistOrder = async () => {
+    if (!authStore.user) return
+
+    // Подготовка данных для массового обновления (Upsert)
+    // Мы берем текущий порядок в массиве и присваиваем индексы
+    const updates = cards.value.map((card, index) => ({
+      id: card.id,
+      user_id: authStore.user!.id, // RLS требует указания владельца при upsert
+      content: card.content,       // Upsert требует обязательных полей, если они not null
+      color: card.color,           // (зависит от настроек базы, часто нужен полный объект)
+      order: index                 // <--- Вот наш новый порядок!
+    }))
+
+    // Оптимизация: Supabase upsert обновляет данные, если ID совпадает
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .upsert(updates) // Отправляем пачкой
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Ошибка сохранения порядка:', error)
+    }
+  }
+
   // 5. Перемешивание (SHUFFLE) - Чисто клиентская функция
-  const shuffleCards = () => {
+  // ИЗМЕНЕНИЕ: Вызов persistOrder после шафла
+  const shuffleCards = async () => {
     // 1. Создаем копию массива, чтобы не мутировать Proxy на каждом шаге цикла
     // Это важно для производительности и избежания глюков реактивности
     const shuffled = [...cards.value]
@@ -132,8 +167,16 @@ export const useShoeboxStore = defineStore('shoebox', () => {
       shuffled[randomIndex] = temp!
     }
 
+    // Присваиваем новые индексы order прямо в объектах перед сохранением в стейт
+    shuffled.forEach((card, index) => {
+      card.order = index
+    })
+
     // 2. Присваиваем уже перемешанный массив обратно в реактивную переменную
     cards.value = shuffled
+
+    // Сохраняем в базу!
+    await persistOrder()
   }
 
 
@@ -141,6 +184,7 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     cards,
     loading,
     totalWordCount,
+    persistOrder,
     fetchCards,
     addCard,
     deleteCard,
