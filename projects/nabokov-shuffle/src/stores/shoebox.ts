@@ -29,8 +29,12 @@ export const useShoeboxStore = defineStore('shoebox', () => {
       const { data, error } = await supabase
         .from('cards')
         .select('*')
-        // .order('created_at', { ascending: false }) // Новые сверху
-        .order('order', { ascending: true }) // <--- Сортируем по порядку!
+        .select('*')
+        // Приоритет 1: Порядок пользователя (сначала маленькие числа, например -5, потом 0, 1, 2)
+        .order('order', { ascending: true })
+        // Приоритет 2: Если order совпал (например у всех 0), сортируем по дате создания
+        // ascending: false означает "новые сверху" (от большей даты к меньшей)
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       if (data) {

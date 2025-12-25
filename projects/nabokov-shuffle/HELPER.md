@@ -223,3 +223,42 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     }
   }
 ```
+
+
+# Мягкая сортировка
+Supabase (и SQL в целом) позволяет указывать цепочку сортировок. Если значения в первой колонке совпадают (у вас сейчас везде 0), база будет смотреть на вторую колонку.
+
+Вам нужно просто добавить второй вызов .order() в цепочку запроса.
+
+Исправленный fetchCards
+Мы хотим такой порядок:
+
+Сначала смотрим на order (по возрастанию).
+
+Если order одинаковый (например, 0), то более свежие карточки (created_at) должны быть выше (или ниже, как вам удобнее). Обычно в списках "новые сверху" — это descending (убывание).
+
+```typescript
+  // 1. Загрузка (READ)
+  const fetchCards = async () => {
+    loading.value = true
+    try {
+      const { data, error } = await supabase
+        .from('cards')
+        .select('*')
+        // Приоритет 1: Порядок пользователя (сначала маленькие числа, например -5, потом 0, 1, 2)
+        .order('order', { ascending: true })
+        // Приоритет 2: Если order совпал (например у всех 0), сортируем по дате создания
+        // ascending: false означает "новые сверху" (от большей даты к меньшей)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      if (data) {
+        cards.value = data as Card[]
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки:', error)
+    } finally {
+      loading.value = false
+    }
+  }
+```
