@@ -3,13 +3,17 @@ import { computed } from 'vue';
 import type { Card, CardColor } from '@/types';
 
 const props = defineProps<{
-  card: Card
+  card: Card,
+  isReadOnly?: boolean // <--- Новая пропса (опциональная)
 }>();
 
 const emit = defineEmits<{
-  (e: 'remove', id: string): void
   (e: 'update', id: string, content: string): void
   (e: 'changeColor', id: string, color: CardColor): void
+  // Разделяем события удаления
+  (e: 'archive', id: string): void
+  (e: 'restore', id: string): void
+  (e: 'deleteForever', id: string): void
 }>();
 
 // Форматирование даты
@@ -39,7 +43,7 @@ const colorMap: Record<CardColor, string> = {
 </script>
 
 <template>
-  <div class="note-card" :class="`is-${card.color}`">
+  <div class="note-card" :class="[`is-${card.color}`, { 'is-archived': isReadOnly }]">
     <!-- HEADER: Дата + ID + Кнопки -->
     <div class="card-header">
       <div class="header-left">
@@ -51,7 +55,8 @@ const colorMap: Record<CardColor, string> = {
 
       <div class="header-right">
         <!-- Палитра цветов -->
-        <div class="color-picker">
+        <!-- В Архиве палитра не нужна, скрываем -->
+        <div v-if="!isReadOnly" class="color-picker">
           <button
             v-for="color in colors"
             :key="color"
@@ -63,15 +68,27 @@ const colorMap: Record<CardColor, string> = {
           ></button>
         </div>
 
-        <button class="btn-close" @click.stop="emit('remove', card.id)" aria-label="Удалить">×</button>
+        <!-- КНОПКИ ДЕЙСТВИЙ -->
+        <template v-if="!isReadOnly">
+           <!-- Кнопка "В архив" (бывший крестик) -->
+           <button class="btn-action" @click.stop="emit('archive', card.id)" title="В архив">×</button>
+        </template>
+
+        <template v-else>
+           <!-- Кнопки в Архиве -->
+           <button class="btn-restore" @click.stop="emit('restore', card.id)" title="Восстановить">↩</button>
+           <button class="btn-danger" @click.stop="emit('deleteForever', card.id)" title="Удалить навсегда">🗑</button>
+        </template>
       </div>
     </div>
 
+    <!-- CONTENT: В архиве readonly -->
     <textarea
       class="card-content"
       :value="card.content"
       @input="emit('update', card.id, ($event.target as HTMLTextAreaElement).value)"
-      placeholder="Мысль..."
+      :readonly="isReadOnly"
+      :placeholder="isReadOnly ? 'Текст заметки...' : 'Мысль...'"
     ></textarea>
   </div>
 </template>
@@ -224,5 +241,41 @@ const colorMap: Record<CardColor, string> = {
 .card-date {
   font-size: 0.75rem;
   color: #90a4ae;
+}
+
+/* Стиль для архивной карточки */
+.is-archived {
+  opacity: 0.8;
+  background-color: #f5f5f5 !important; /* Серый фон */
+  border: 1px dashed #ccc !important;
+  box-shadow: none !important;
+}
+
+.btn-restore {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  margin-right: 8px;
+  color: #4caf50; /* Зеленый */
+}
+
+.btn-danger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: #e53935; /* Красный */
+}
+
+.btn-action {
+    /* Старый стиль btn-close */
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #b0bec5;
+    &:hover { color: #ef5350; }
 }
 </style>

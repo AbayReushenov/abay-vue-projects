@@ -6,16 +6,18 @@ import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
 
 const store = useShoeboxStore();
-const { cards, totalWordCount, loading, sortMode } = storeToRefs(store);
-const { addCard, deleteCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder, changeCardColor} = store;
+const { displayedCards, totalWordCount, loading, sortMode, showArchived } = storeToRefs(store);
+const { addCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder,
+  changeCardColor, archiveCard, restoreCard, deleteForever } = store;
 
 onMounted(() => {
   fetchCards();
-})
+});
 
 // Обработчик окончания перетаскивания
 const onDragEnd = () => {
-  updateOrder(cards.value);
+  // Важно: передаем только то, что сейчас на экране (displayedCards)
+  updateOrder(displayedCards.value);
 }
 </script>
 
@@ -28,18 +30,34 @@ const onDragEnd = () => {
         <div class="top-row">
           <div class="stats">
             <span v-if="loading" class="loading-badge">⏳</span>
-            <span class="stat-item">📝 {{ cards.length }}</span>
-            <span class="stat-item">🔤 {{ totalWordCount }}</span>
+            <!-- Меняем заголовок в зависимости от режима -->
+            <span class="mode-title">{{ showArchived ? '🗑️ Архив' : '✍️ Мастерская' }}</span>
+            <span class="stat-separator">|</span>
+            <span class="stat-item">📝 {{ displayedCards.length }}</span>
+            <span v-if="!showArchived" class="stat-item">🔤 {{ totalWordCount }}</span>
           </div>
 
           <div class="actions">
-            <button class="btn-primary" @click="addCard()">+ <span class="desktop-text">Заметка</span></button>
-            <button class="btn-secondary" @click="shuffleCards()" title="Перемешать">🎲</button>
+            <!-- Кнопка переключения Архива -->
+            <button
+              class="btn-archive-toggle"
+              @click="store.showArchived = !store.showArchived"
+              :class="{ active: showArchived }"
+            >
+              {{ showArchived ? '← Назад к столу' : 'Архив' }}
+            </button>
+
+            <!-- Кнопки действий (скрываем в архиве) -->
+            <template v-if="!showArchived">
+              <button class="btn-primary" @click="addCard()">+ <span class="desktop-text">Заметка</span></button>
+              <button class="btn-secondary" @click="shuffleCards()" title="Перемешать">🎲</button>
+            </template>
           </div>
         </div>
 
         <!-- Нижний ряд: Сортировка (на мобильных может скроллиться горизонтально) -->
-        <div class="sort-controls">
+        <!-- Сортировка (скрываем в архиве, там она не особо нужна, или оставляем) -->
+        <div v-if="!showArchived" class="sort-controls">
           <button :class="{ active: sortMode === 'newest' }" @click="setSortMode('newest')">Свежие</button>
           <button :class="{ active: sortMode === 'oldest' }" @click="setSortMode('oldest')">Старые</button>
           <button :class="{ active: sortMode === 'custom' }" @click="setSortMode('custom')">Мой порядок</button>
@@ -48,7 +66,7 @@ const onDragEnd = () => {
     </header>
 
     <div class="desk-surface">
-        <!--
+      <!--
         ЗАМЕНА TransitionGroup НА VueDraggable
         v-model="cards" - двусторонняя связь с массивом
         :animation="150" - время анимации сдвига (мс)
@@ -57,33 +75,41 @@ const onDragEnd = () => {
         class="cards-grid" - тот же класс сетки
         @end="onDragEnd" - вызываем сохранение, когда бросили
       -->
-        <VueDraggable
-          v-model="cards"
-          :animation="200"
-          class="cards-grid"
-          ghost-class="ghost"
-          handle=".card-header"
-          @end="onDragEnd"
-        >
+      <!--
+        Используем displayedCards в v-model
+        Отключаем перетаскивание (disabled), если мы в архиве!
+      -->
+      <VueDraggable
+        v-model="displayedCards"
+        :animation="200"
+        class="cards-grid"
+        ghost-class="ghost"
+        handle=".card-header"
+        @end="onDragEnd">
         <!--
            ВАЖНО: Внутри VueDraggable нужен один корневой элемент для цикла,
            либо компонент должен принимать аттрибуты.
            NoteCard принимает класс и style нормально.
         -->
         <NoteCard
-          v-for="card in cards"
+          v-for="card in displayedCards"
           :key="card.id"
           :card="card"
-          @remove="deleteCard"
+          :is-read-only="showArchived"
+          @archive="archiveCard"
+          @restore="restoreCard"
+          @deleteForever="deleteForever"
           @update="updateCardContent"
           @changeColor="changeCardColor"
         />
       </VueDraggable>
 
-      <!-- Empty State -->
-      <div v-if="cards.length === 0 && !loading" class="empty-state">
-        <p>Коробка пуста.</p>
-        <button class="btn-text" @click="addCard()">Создать первую карточку</button>
+      <!-- Empty States -->
+      <div v-if="displayedCards.length === 0 && !loading" class="empty-state">
+        <p v-if="!showArchived">Коробка пуста. Начни писать свой шедевр.</p>
+        <p v-else>Архив пуст. Все заметки в работе.</p>
+
+        <button v-if="!showArchived" class="btn-text" @click="addCard()">Создать первую карточку</button>
       </div>
     </div>
   </div>
@@ -94,7 +120,8 @@ const onDragEnd = () => {
   max-width: 1400px;
   margin: 0 auto;
   min-height: 100vh;
-  background-color: #f4f6f8; /* Легкий фон всей страницы */
+  background-color: #f4f6f8;
+  /* Легкий фон всей страницы */
 }
 
 /* --- TOOLBAR --- */
@@ -105,7 +132,7 @@ const onDragEnd = () => {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
   padding: 0.75rem 1rem;
 }
 
@@ -164,12 +191,14 @@ const onDragEnd = () => {
     white-space: nowrap;
     transition: all 0.2s;
 
-    &:hover { color: #455a64; }
+    &:hover {
+      color: #455a64;
+    }
 
     &.active {
       background: white;
       color: #263238;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
   }
 }
@@ -187,8 +216,14 @@ const onDragEnd = () => {
   align-items: center;
   gap: 6px;
   transition: background 0.2s;
-  &:hover { background: #000; }
-  &:active { transform: scale(0.98); }
+
+  &:hover {
+    background: #000;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
 }
 
 .btn-secondary {
@@ -200,7 +235,10 @@ const onDragEnd = () => {
   cursor: pointer;
   font-size: 1.2rem;
   line-height: 1;
-  &:hover { background: #eceff1; }
+
+  &:hover {
+    background: #eceff1;
+  }
 }
 
 .btn-text {
@@ -234,24 +272,29 @@ const onDragEnd = () => {
 /* --- МОБИЛЬНЫЙ АДАПТИВ (iPhone 13 / 16 Pro) --- */
 @media (max-width: 600px) {
   .desk-surface {
-    padding: 1rem; /* Уменьшаем отступы по краям экрана */
+    padding: 1rem;
+    /* Уменьшаем отступы по краям экрана */
   }
 
   .cards-grid {
     /* Принудительно 1 колонка на узких экранах */
     grid-template-columns: 1fr;
-    gap: 1rem; /* Уменьшаем расстояние между карточками */
+    gap: 1rem;
+    /* Уменьшаем расстояние между карточками */
   }
 
   .desktop-text {
-    display: none; /* Скрываем текст "Заметка" на кнопке, оставляем только "+" */
+    display: none;
+    /* Скрываем текст "Заметка" на кнопке, оставляем только "+" */
   }
 
   .sort-controls {
-    width: 100%; /* Растягиваем кнопки сортировки на всю ширину */
+    width: 100%;
+    /* Растягиваем кнопки сортировки на всю ширину */
 
     button {
-      padding: 8px 4px; /* Компактнее */
+      padding: 8px 4px;
+      /* Компактнее */
       font-size: 0.8rem;
     }
   }
@@ -301,7 +344,7 @@ const onDragEnd = () => {
   /* Важно для работы библиотеки внутри Grid */
   display: grid;
   // grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); 
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1.5rem;
   width: 100%;
 }
@@ -311,5 +354,35 @@ const onDragEnd = () => {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
+}
+
+/* Добавим стили для режима Архива */
+.archive-mode {
+  background-color: #e0e0e0; /* Серый фон, чтобы сразу понять контекст */
+  min-height: 100vh;
+}
+
+.archive-mode .toolbar {
+  background: #d6d6d6;
+  border-bottom: 1px solid #bbb;
+}
+
+.btn-archive-toggle {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+
+  &:hover { background: #f5f5f5; }
+  &.active { background: #333; color: white; border-color: #333; }
+}
+
+.mode-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #2c3e50;
 }
 </style>
