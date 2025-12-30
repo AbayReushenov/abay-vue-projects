@@ -100,6 +100,8 @@ const colorMap: Record<CardColor, string> = {
   background: #fff;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box; /* Чтобы padding не ломал сетку */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid transparent; /* Резервируем место под бордер, чтобы не прыгало */
 
   /* Цветовые темы (фон всей карточки) */
   &.is-default { background: #fdfbf7; border: 1px solid #efebe9; }
@@ -115,6 +117,32 @@ const colorMap: Record<CardColor, string> = {
       z-index: 10;
     }
   }
+}
+
+/* --- СОСТОЯНИЕ ФОКУСА (Редактирование) --- */
+.note-card:focus-within {
+  transform: translateY(-4px); /* Легкий подъем */
+  box-shadow: 0 8px 16px rgba(0,0,0,0.12); /* Глубокая тень */
+  z-index: 10; /* Поверх соседей */
+}
+
+/* Цветные акценты при фокусе */
+/* Для белой карточки - нейтральный серый бордер */
+.note-card.is-default:focus-within {
+  border-color: #b0bec5;
+}
+
+/* Для цветных - бордер чуть темнее фона */
+.note-card.is-yellow:focus-within {
+  border-color: #fbc02d; /* Темно-желтый */
+}
+
+.note-card.is-blue:focus-within {
+  border-color: #64b5f6; /* Темно-голубой */
+}
+
+.note-card.is-pink:focus-within {
+  border-color: #f06292; /* Темно-розовый */
 }
 
 .card-header {
