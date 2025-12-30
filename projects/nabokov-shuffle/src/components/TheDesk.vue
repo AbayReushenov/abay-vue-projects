@@ -14,16 +14,13 @@ onMounted(() => {
   fetchCards();
 });
 
-// Обработчик окончания перетаскивания
 const onDragEnd = () => {
-  // Важно: передаем только то, что сейчас на экране (displayedCards)
   updateOrder(displayedCards.value);
 }
 </script>
 
 <template>
   <div class="desk-container">
-    <!-- Sticky Toolbar: Прилипает к верху экрана -->
     <header class="toolbar">
       <div class="toolbar-content">
         <!-- Верхний ряд: Статистика и Основные действия -->
@@ -55,8 +52,6 @@ const onDragEnd = () => {
           </div>
         </div>
 
-        <!-- Нижний ряд: Сортировка (на мобильных может скроллиться горизонтально) -->
-        <!-- Сортировка (скрываем в архиве, там она не особо нужна, или оставляем) -->
         <div v-if="!showArchived" class="sort-controls">
           <button :class="{ active: sortMode === 'newest' }" @click="setSortMode('newest')">Свежие</button>
           <button :class="{ active: sortMode === 'oldest' }" @click="setSortMode('oldest')">Старые</button>
@@ -66,19 +61,6 @@ const onDragEnd = () => {
     </header>
 
     <div class="desk-surface">
-      <!--
-        ЗАМЕНА TransitionGroup НА VueDraggable
-        v-model="cards" - двусторонняя связь с массивом
-        :animation="150" - время анимации сдвига (мс)
-        handle=".drag-handle" - (Опционально) если хотите тянуть только за иконку.
-                                Пока оставим тянуть за всю карточку, кроме текста.
-        class="cards-grid" - тот же класс сетки
-        @end="onDragEnd" - вызываем сохранение, когда бросили
-      -->
-      <!--
-        Используем displayedCards в v-model
-        Отключаем перетаскивание (disabled), если мы в архиве!
-      -->
       <VueDraggable
         v-model="displayedCards"
         :animation="200"
@@ -86,11 +68,6 @@ const onDragEnd = () => {
         ghost-class="ghost"
         handle=".card-header"
         @end="onDragEnd">
-        <!--
-           ВАЖНО: Внутри VueDraggable нужен один корневой элемент для цикла,
-           либо компонент должен принимать аттрибуты.
-           NoteCard принимает класс и style нормально.
-        -->
         <NoteCard
           v-for="card in displayedCards"
           :key="card.id"
@@ -251,7 +228,6 @@ const onDragEnd = () => {
   margin-top: 10px;
 }
 
-/* --- GRID SYSTEM (САМОЕ ВАЖНОЕ) --- */
 .desk-surface {
   padding: 1.5rem;
   max-width: 1200px;
@@ -260,10 +236,6 @@ const onDragEnd = () => {
 
 .cards-grid {
   display: grid;
-  /* Магия гридов: */
-  /* minmax(280px, 1fr) означает: колонки не меньше 280px, но если места больше — растягивайся */
-  /* Было: minmax(320px, 1fr) или 280px */
-  /* Стало: minmax(360px, 1fr) */
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1.5rem;
   width: 100%;
@@ -320,7 +292,6 @@ const onDragEnd = () => {
 
 .cards-shuffle-leave-active {
   position: absolute;
-  /* Важно для Grid анимации: скрываем уходящий элемент, чтобы сетка перестроилась */
   display: none;
 }
 
@@ -343,7 +314,6 @@ const onDragEnd = () => {
 .cards-grid {
   /* Важно для работы библиотеки внутри Grid */
   display: grid;
-  // grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1.5rem;
   width: 100%;

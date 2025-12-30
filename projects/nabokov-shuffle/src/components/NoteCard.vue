@@ -10,7 +10,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update', id: string, content: string): void
   (e: 'changeColor', id: string, color: CardColor): void
-  // Разделяем события удаления
   (e: 'archive', id: string): void
   (e: 'restore', id: string): void
   (e: 'deleteForever', id: string): void
@@ -33,7 +32,6 @@ const formattedDate = computed(() => {
 // Доступные цвета для палитры
 const colors: CardColor[] = ['default', 'yellow', 'blue', 'pink'];
 
-// Маппинг цветов для отображения кружков (CSS background)
 const colorMap: Record<CardColor, string> = {
   default: '#fdfbf7', // Белый/Бумажный
   yellow: '#fff9c4',
@@ -44,7 +42,6 @@ const colorMap: Record<CardColor, string> = {
 
 <template>
   <div class="note-card" :class="[`is-${card.color}`, { 'is-archived': isReadOnly }]">
-    <!-- HEADER: Дата + ID + Кнопки -->
     <div class="card-header">
       <div class="header-left">
         <!-- Вернули ID -->
@@ -70,12 +67,10 @@ const colorMap: Record<CardColor, string> = {
 
         <!-- КНОПКИ ДЕЙСТВИЙ -->
         <template v-if="!isReadOnly">
-           <!-- Кнопка "В архив" (бывший крестик) -->
            <button class="btn-action" @click.stop="emit('archive', card.id)" title="В архив">×</button>
         </template>
 
         <template v-else>
-           <!-- Кнопки в Архиве -->
            <button class="btn-restore" @click.stop="emit('restore', card.id)" title="Восстановить">↩</button>
            <button class="btn-danger" @click.stop="emit('deleteForever', card.id)" title="Удалить навсегда">🗑</button>
         </template>
@@ -95,11 +90,9 @@ const colorMap: Record<CardColor, string> = {
 
 <style scoped lang="scss">
 .note-card {
-  /* ВАЖНО: Убираем фиксированную ширину. Теперь ширина определяется Grid-контейнером */
   width: 100%;
-  /* Минимальная высота для удобства ввода, но может расти */
   min-height: 280px;
-  padding: 1.25rem; /* Чуть больше воздуха */
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   border-radius: 12px; /* Более современные скругления */
@@ -164,8 +157,6 @@ const colorMap: Record<CardColor, string> = {
   background: rgba(255,255,255,0.5);
   padding: 2px;
   border-radius: 12px;
-  /* transition: opacity 0.2s; */
-  /* opacity: 0.5; // Можно сделать полупрозрачным по умолчанию */
 }
 
 .color-dot {
