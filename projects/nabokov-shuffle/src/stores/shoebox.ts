@@ -6,17 +6,34 @@ import type { Card, CardColor, SortMode } from '../types'
 
 export const useShoeboxStore = defineStore('shoebox', () => {
   // --- STATE ---
-  const cards = ref<Card[]>([])
+  const cards = ref<Card[]>([])  // Храним ВСЕ карточки (и активные, и архивные)
   const loading = ref(false)
   const sortMode = ref<SortMode>('custom') // <--- По умолчанию "По порядку"
 
+  // Режим просмотра: false = смотрим стол, true = смотрим архив
+  const showArchived = ref(false)
   // Нам нужен authStore для получения user.id
   const authStore = useAuthStore()
 
   // --- GETTERS ---
-  // Счетчик слов
+  // 1. Активные карточки (для Стола)
+  const activeCards = computed(() => {
+    return cards.value.filter(c => !c.is_archived)
+  })
+
+  // 2. Архивные карточки (для Корзины)
+  const archivedCards = computed(() => {
+    return cards.value.filter(c => c.is_archived)
+  })
+
+  // 3. Текущие отображаемые карточки (в зависимости от режима)
+  const displayedCards = computed(() => {
+    return showArchived.value ? archivedCards.value : activeCards.value
+  })
+
+  // 4. Счетчик слов (считаем только активные!)
   const totalWordCount = computed(() => {
-    return cards.value.reduce((acc, card) => {
+    return activeCards.value.reduce((acc, card) => {
       return acc + (card.content.trim() ? card.content.trim().split(/\s+/).length : 0)
     }, 0)
   })
@@ -122,21 +139,76 @@ export const useShoeboxStore = defineStore('shoebox', () => {
   }
 
   // 3. Удаление (DELETE)
-  const deleteCard = async (id: string) => {
-    // Оптимистичное обновление: удаляем из UI сразу, чтобы была красивая анимация
-    const originalCards = [...cards.value]
-    cards.value = cards.value.filter((c) => c.id !== id)
+  // const deleteCard = async (id: string) => {
+  //   // Оптимистичное обновление: удаляем из UI сразу, чтобы была красивая анимация
+  //   const originalCards = [...cards.value]
+  //   cards.value = cards.value.filter((c) => c.id !== id)
+
+  //   try {
+  //     const { error } = await supabase.from('cards').delete().eq('id', id)
+
+  //     if (error) {
+  //       // Если ошибка — возвращаем карточку назад
+  //       cards.value = originalCards
+  //       throw error
+  //     }
+  //   } catch (error) {
+  //     console.error('Ошибка удаления:', error)
+  //   }
+  // }
+
+  // ИЗМЕНЕНО: Вместо удаления теперь Архивируем
+  const archiveCard = async (id: string) => {
+    // Оптимистичное обновление
+    const card = cards.value.find(c => c.id === id)
+    if (card) card.is_archived = true
 
     try {
-      const { error } = await supabase.from('cards').delete().eq('id', id)
+      const { error } = await supabase
+        .from('cards')
+        .update({ is_archived: true })
+        .eq('id', id)
 
-      if (error) {
-        // Если ошибка — возвращаем карточку назад
-        cards.value = originalCards
-        throw error
-      }
+      if (error) throw error
     } catch (error) {
-      console.error('Ошибка удаления:', error)
+      console.error('Ошибка архивации:', error)
+      if (card) card.is_archived = false // Откат
+    }
+  }
+
+  // НОВОЕ: Восстановить из архива
+  const restoreCard = async (id: string) => {
+    const card = cards.value.find(c => c.id === id)
+    if (card) card.is_archived = false
+
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .update({ is_archived: false })
+        .eq('id', id)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Ошибка восстановления:', error)
+      if (card) card.is_archived = true // Откат
+    }
+  }
+
+  // НОВОЕ: Удалить насовсем (только из архива)
+  const deleteForever = async (id: string) => {
+    // Удаляем локально
+    cards.value = cards.value.filter(c => c.id !== id)
+
+    try {
+      const { error } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Ошибка полного удаления:', error)
+      // В идеале тут нужен refetch, но пока оставим так
     }
   }
 
@@ -235,17 +307,24 @@ export const useShoeboxStore = defineStore('shoebox', () => {
   }
 
   return {
-    cards,
+    cards, // Сырой массив (редко нужен напрямую)
+    displayedCards, // <-- Используем это в v-for!
+    activeCards,
+    archivedCards,
     loading,
     totalWordCount,
     sortMode,
+    showArchived, // <-- Экспортируем флаг
     setSortMode,
     updateOrder, // экспортировать новый метод
     changeCardColor,
-    persistOrder,
+    persistOrder, // Check this!
     fetchCards,
     addCard,
-    deleteCard,
+    archiveCard,   // Вместо deleteCard
+    restoreCard,   // Для архива
+    deleteForever, // Хард-делит
+    // deleteCard, // теперь не нужен
     updateCardContent,
     shuffleCards,
   }
