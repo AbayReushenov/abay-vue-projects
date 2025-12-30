@@ -63,23 +63,23 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     applySort() // Сразу применяем сортировку
   }
 
-  // НОВОЕ ACTION: Обновление порядка после Drag-n-Drop
-  const updateOrder = async (newCards: Card[]) => {
-    // 1. Обновляем локальный стейт
-    cards.value = newCards
+  // 2. Обновляем updateOrder (вызывается после Drag-n-Drop)
+  const updateOrder = async (newActiveCards: Card[]) => {
+    // newActiveCards - это только те, что на столе (пришли из VueDraggable)
 
-    // 2. Если режим сортировки не 'custom', переключаем на 'custom'
-    // (ведь пользователь только что создал свой порядок руками)
-    if (sortMode.value !== 'custom') {
-      sortMode.value = 'custom'
-    }
+    // Нам нужно ОБЪЕДИНИТЬ их с архивными карточками, которые мы не трогали
+    // Иначе архивные карточки просто исчезнут из state!
+    const currentArchived = cards.value.filter(c => c.is_archived)
 
-    // 3. Пересчитываем индексы order для всех карточек
-    cards.value.forEach((card, index) => {
+    // Обновляем индексы у активных
+    newActiveCards.forEach((card, index) => {
       card.order = index
     })
 
-    // 4. Отправляем в базу (в фоне)
+    // Собираем полный массив обратно
+    cards.value = [...newActiveCards, ...currentArchived]
+
+    // Сохраняем в базу
     await persistOrder()
   }
 
@@ -229,24 +229,23 @@ export const useShoeboxStore = defineStore('shoebox', () => {
     }
   }
 
-  // Сохранение порядка на сервере
+  // 1. Обновляем persistOrder
   const persistOrder = async () => {
     if (!authStore.user) return
 
-    // Подготовка данных для массового обновления (Upsert)
-    // Мы берем текущий порядок в массиве и присваиваем индексы
-    const updates = cards.value.map((card, index) => ({
+    // Берем только АКТИВНЫЕ карточки для обновления порядка
+    // Архивные пусть лежат со старым order, это не важно
+    const updates = activeCards.value.map((card, index) => ({
       id: card.id,
-      user_id: authStore.user!.id, // RLS требует указания владельца при upsert
-      content: card.content, // Upsert требует обязательных полей, если они not null
-      color: card.color, // (зависит от настроек базы, часто нужен полный объект)
-      order: index, // <--- Вот наш новый порядок!
+      user_id: authStore.user!.id,
+      content: card.content,
+      color: card.color,
+      is_archived: false, // Явно указываем, что они активны
+      order: index // Перезаписываем порядок от 0 до N
     }))
 
-    // Оптимизация: Supabase upsert обновляет данные, если ID совпадает
     try {
-      const { error } = await supabase.from('cards').upsert(updates) // Отправляем пачкой
-
+      const { error } = await supabase.from('cards').upsert(updates)
       if (error) throw error
     } catch (error) {
       console.error('Ошибка сохранения порядка:', error)
