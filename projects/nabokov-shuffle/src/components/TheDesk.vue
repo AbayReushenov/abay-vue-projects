@@ -1,21 +1,35 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue'; // Добавили ref и watch
 import { storeToRefs } from 'pinia';
 import { VueDraggable } from 'vue-draggable-plus';
 import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
+import type { Card } from '../types'; // Важно для типизации
 
 const store = useShoeboxStore();
 const { displayedCards, totalWordCount, loading, sortMode, showArchived } = storeToRefs(store);
 const { addCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder,
   changeCardColor, archiveCard, restoreCard, deleteForever } = store;
 
+// --- ИСПРАВЛЕНИЕ: Локальный мутабельный массив для Drag-n-Drop ---
+const draggableList = ref<Card[]>([]);
+
+// 1. Синхронизация: Store (ReadOnly) -> Local (Mutable)
+// Когда данные приходят с сервера или меняется фильтр (архив/стол), обновляем локальный список
+watch(displayedCards, (newVal) => {
+  // Создаем поверхностную копию массива, чтобы разорвать связь с ReadOnly Computed
+  draggableList.value = [...newVal];
+}, { immediate: true, deep: true });
+
 onMounted(() => {
   fetchCards();
 });
 
+// 2. Синхронизация: Local -> Store
+// Вызывается после завершения перетаскивания
 const onDragEnd = () => {
-  updateOrder(displayedCards.value);
+  // Отправляем новый порядок в стор для сохранения
+  updateOrder(draggableList.value);
 }
 </script>
 
@@ -62,14 +76,17 @@ const onDragEnd = () => {
 
     <div class="desk-surface">
       <VueDraggable
-        v-model="displayedCards"
+        v-model="draggableList"
         :animation="200"
         class="cards-grid"
         ghost-class="ghost"
         handle=".card-header"
+        :disabled="showArchived"
         @end="onDragEnd">
+
+        <!-- ВАЖНО: Итерируемся по draggableList, а не по displayedCards -->
         <NoteCard
-          v-for="card in displayedCards"
+          v-for="card in draggableList"
           :key="card.id"
           :card="card"
           :is-read-only="showArchived"
