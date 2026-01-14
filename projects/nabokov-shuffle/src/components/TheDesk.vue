@@ -7,9 +7,12 @@ import NoteCard from './NoteCard.vue';
 import type { Card } from '../types'; // Важно для типизации
 
 const store = useShoeboxStore();
-const { displayedCards, totalWordCount, loading, sortMode, showArchived } = storeToRefs(store);
+const { displayedCards, totalWordCount, loading, sortMode, showArchived,
+  searchQuery, selectedColors, isFiltered } = storeToRefs(store);
 const { addCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updateOrder,
-  changeCardColor, archiveCard, restoreCard, deleteForever } = store;
+  changeCardColor, archiveCard, restoreCard, deleteForever,
+  toggleColorFilter,
+  resetFilters } = store;
 
 // --- ИСПРАВЛЕНИЕ: Локальный мутабельный массив для Drag-n-Drop ---
 const draggableList = ref<Card[]>([]);
@@ -34,10 +37,10 @@ const onDragEnd = () => {
 </script>
 
 <template>
-  <div class="desk-container">
+  <div class="desk-container" :class="{ 'archive-mode': showArchived }">
     <header class="toolbar">
       <div class="toolbar-content">
-        <!-- Верхний ряд: Статистика и Основные действия -->
+        <!-- ВЕРХНИЙ РЯД (Статистика + Кнопки) -->
         <div class="top-row">
           <div class="stats">
             <span v-if="loading" class="loading-badge">⏳</span>
@@ -66,6 +69,43 @@ const onDragEnd = () => {
           </div>
         </div>
 
+        <!-- СРЕДНИЙ РЯД: Поиск и Фильтры (Только в Мастерской) -->
+        <div v-if="!showArchived" class="filters-row">
+          <!-- Поиск -->
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="Найти мысль..."
+              class="search-input"
+            />
+            <button v-if="searchQuery" @click="searchQuery = ''" class="btn-clear">×</button>
+          </div>
+
+          <!-- Фильтры по цветам -->
+          <div class="color-filters">
+            <button
+              v-for="color in ['default', 'yellow', 'blue', 'pink']"
+              :key="color"
+              class="filter-dot"
+              :class="[`is-${color}`, { active: selectedColors.includes(color as any) }]"
+              @click="toggleColorFilter(color as any)"
+              :title="`Фильтр: ${color}`"
+            ></button>
+
+            <!-- Кнопка сброса (показываем, если есть активные фильтры) -->
+            <button
+              v-if="selectedColors.length > 0 || searchQuery"
+              class="btn-reset"
+              @click="resetFilters"
+            >
+              Сброс
+            </button>
+          </div>
+        </div>
+
+         <!-- НИЖНИЙ РЯД: Сортировка (без изменений) -->
         <div v-if="!showArchived" class="sort-controls">
           <button :class="{ active: sortMode === 'newest' }" @click="setSortMode('newest')">Свежие</button>
           <button :class="{ active: sortMode === 'oldest' }" @click="setSortMode('oldest')">Старые</button>
@@ -81,7 +121,7 @@ const onDragEnd = () => {
         class="cards-grid"
         ghost-class="ghost"
         handle=".card-header"
-        :disabled="showArchived"
+        :disabled="showArchived || isFiltered"
         @end="onDragEnd">
 
         <!-- ВАЖНО: Итерируемся по draggableList, а не по displayedCards -->
@@ -371,5 +411,106 @@ const onDragEnd = () => {
   font-weight: bold;
   font-size: 1.1rem;
   color: #2c3e50;
+}
+
+/* --- СТИЛИ ДЛЯ ПОИСКА И ФИЛЬТРОВ --- */
+.filters-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap; /* Чтобы на мобильном переносилось */
+}
+
+.search-box {
+  position: relative;
+  flex: 1; /* Занимает доступное место */
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 30px 8px 32px; /* Место под иконку и крестик */
+  border: 1px solid #cfd8dc;
+  border-radius: 20px; /* Овальная форма */
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: #607d8b;
+  }
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  opacity: 0.5;
+  font-size: 0.9rem;
+}
+
+.btn-clear {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: #999;
+  &:hover { color: #333; }
+}
+
+.color-filters {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.filter-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent; /* Рамка для активного состояния */
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+
+  /* Цвета точек (совпадают с карточками) */
+  &.is-default { background: #fdfbf7; border-color: #e0e0e0; }
+  &.is-yellow  { background: #fff9c4; }
+  &.is-blue    { background: #bbdefb; }
+  &.is-pink    { background: #f8bbd0; }
+
+  &:hover { transform: scale(1.1); }
+
+  /* Активное состояние: жирная рамка или тень */
+  &.active {
+    transform: scale(1.2);
+    border-color: #546e7a; /* Темная рамка */
+    box-shadow: 0 0 0 2px rgba(84, 110, 122, 0.2);
+  }
+}
+
+.btn-reset {
+  font-size: 0.8rem;
+  color: #e53935;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 4px;
+}
+
+/* Мобильная адаптация */
+@media (max-width: 600px) {
+  .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .color-filters {
+    justify-content: center;
+  }
 }
 </style>
