@@ -74,7 +74,7 @@ const handleShuffleClick = () => {
   openConfirm(
     'Перемешать карточки?',
     'Порядок заметок будет изменен случайным образом.',
-    () => store.shuffleCards(),
+    () => shuffleCards(),
     'info',
     'Перемешать'
   );
@@ -85,7 +85,7 @@ const handleDeleteForever = (id: string) => {
   openConfirm(
     'Удалить навсегда?',
     'Эту заметку нельзя будет восстановить. Вы уверены?',
-    () => store.deleteForever(id),
+    () => deleteForever(id),
     'danger', // Красная кнопка!
     'Удалить'
   );
