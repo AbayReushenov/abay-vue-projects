@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia';
 import { VueDraggable } from 'vue-draggable-plus';
 import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
-import type { Card } from '../types'; // Важно для типизации
+import type { Card, ConfirmState } from '../types'; // Важно для типизации
 import ConfirmModal from './ConfirmModal.vue';
 
 const store = useShoeboxStore();
@@ -15,8 +15,15 @@ const { addCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updat
   toggleColorFilter,
   resetFilters } = store;
 
-// Состояние модалки
-const showShuffleConfirm = ref(false);
+// 2. Единое состояние для всех подтверждений
+const confirmState = ref<ConfirmState>({
+  isOpen: false,
+  title: '',
+  message: '',
+  confirmText: 'OK',
+  type: 'info',
+  onConfirm: () => {},
+});
 
 // --- ИСПРАВЛЕНИЕ: Локальный мутабельный массив для Drag-n-Drop ---
 const draggableList = ref<Card[]>([]);
@@ -39,15 +46,49 @@ const onDragEnd = () => {
   updateOrder(draggableList.value);
 }
 
-// Функция клика по кнопке "Shuffle"
-const onShuffleClick = () => {
-  showShuffleConfirm.value = true;
+// 3. Универсальная функция открытия
+const openConfirm = (
+  title: string,
+  message: string,
+  onConfirmAction: () => void,
+  type: 'info' | 'warning' | 'danger' = 'info',
+  confirmText: string = 'OK'
+) => {
+  confirmState.value = {
+    isOpen: true,
+    title,
+    message,
+    type,
+    confirmText,
+    onConfirm: async () => {
+      // Закрываем модалку и выполняем действие
+      confirmState.value.isOpen = false;
+      await onConfirmAction();
+    }
+  };
 };
 
-// Функция, которая реально запускает шаффл (вызывается из модалки)
-const confirmShuffle = async () => {
-  showShuffleConfirm.value = false;
-  await store.shuffleCards();
+
+// А. Для Шаффла
+const handleShuffleClick = () => {
+  openConfirm(
+    'Перемешать карточки?',
+    'Порядок заметок будет изменен случайным образом.',
+    () => store.shuffleCards(),
+    'info',
+    'Перемешать'
+  );
+};
+
+// Б. Для Удаления навсегда (вызывается из NoteCard @deleteForever)
+const handleDeleteForever = (id: string) => {
+  openConfirm(
+    'Удалить навсегда?',
+    'Эту заметку нельзя будет восстановить. Вы уверены?',
+    () => store.deleteForever(id),
+    'danger', // Красная кнопка!
+    'Удалить'
+  );
 };
 </script>
 
@@ -79,7 +120,7 @@ const confirmShuffle = async () => {
             <!-- Кнопки действий (скрываем в архиве) -->
             <template v-if="!showArchived">
               <button class="btn-primary" @click="addCard()">+ <span class="desktop-text">Заметка</span></button>
-              <button class="btn-secondary" @click="onShuffleClick()" title="Перемешать">🎲</button>
+              <button class="btn-secondary" @click="handleShuffleClick()" title="Перемешать">🎲</button>
             </template>
           </div>
         </div>
@@ -147,7 +188,7 @@ const confirmShuffle = async () => {
           :is-read-only="showArchived"
           @archive="archiveCard"
           @restore="restoreCard"
-          @deleteForever="deleteForever"
+          @deleteForever="handleDeleteForever"
           @update="updateCardContent"
           @changeColor="changeCardColor"
         />
@@ -175,13 +216,13 @@ const confirmShuffle = async () => {
     </div>
 
     <ConfirmModal
-      :is-open="showShuffleConfirm"
-      title="Перемешать карточки?"
-      message="Это изменит текущий порядок всех заметок. Отменить действие нельзя."
-      confirm-text="Да, перемешать"
-      type="info"
-      @cancel="showShuffleConfirm = false"
-      @confirm="confirmShuffle"
+      :is-open="confirmState.isOpen"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :type="confirmState.type"
+      @cancel="confirmState.isOpen = false"
+      @confirm="confirmState.onConfirm"
     />
   </div>
 </template>

@@ -12,3 +12,12 @@ export interface Card {
 }
 
 export type SortMode = 'custom' | 'newest' | 'oldest';
+
+export interface ConfirmState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText: string;
+  type: 'info' | 'warning' | 'danger';
+  onConfirm: () => void; // Колбэк, который сработает при "ОК"
+}
