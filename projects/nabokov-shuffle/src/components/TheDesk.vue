@@ -140,10 +140,22 @@ const onDragEnd = () => {
 
       <!-- Empty States -->
       <div v-if="displayedCards.length === 0 && !loading" class="empty-state">
-        <p v-if="!showArchived">Коробка пуста. Начни писать свой шедевр.</p>
-        <p v-else>Архив пуст. Все заметки в работе.</p>
+        <!-- Кейс 1: Фильтр ничего не нашел -->
+        <div v-if="store.isFiltered">
+           <p>Ничего не найдено по вашему запросу.</p>
+           <button class="btn-text" @click="store.resetFilters">Сбросить фильтры</button>
+        </div>
 
-        <button v-if="!showArchived" class="btn-text" @click="addCard()">Создать первую карточку</button>
+        <!-- Кейс 2: Архив пуст -->
+        <div v-else-if="showArchived">
+           <p>Архив пуст. Все заметки в работе.</p>
+        </div>
+
+        <!-- Кейс 3: Вообще пусто (начало работы) -->
+        <div v-else>
+           <p>Коробка пуста. Начни писать свой шедевр.</p>
+           <button class="btn-text" @click="addCard()">Создать первую карточку</button>
+        </div>
       </div>
     </div>
   </div>
