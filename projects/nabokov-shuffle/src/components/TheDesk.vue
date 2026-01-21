@@ -2,10 +2,14 @@
 import { ref, watch, onMounted } from 'vue'; // Добавили ref и watch
 import { storeToRefs } from 'pinia';
 import { VueDraggable } from 'vue-draggable-plus';
-import { useShoeboxStore } from '../stores/shoebox';
+import { useShoeboxStore } from '@/stores/shoebox';
 import NoteCard from './NoteCard.vue';
 import type { Card, ConfirmState } from '../types'; // Важно для типизации
 import ConfirmModal from './ConfirmModal.vue';
+import NoteCardSkeleton from './NoteCardSkeleton.vue';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore()
 
 const store = useShoeboxStore();
 const { displayedCards, totalWordCount, loading, sortMode, showArchived,
@@ -35,9 +39,22 @@ watch(displayedCards, (newVal) => {
   draggableList.value = [...newVal];
 }, { immediate: true, deep: true });
 
-onMounted(() => {
-  fetchCards();
+onMounted(async () => {
+  // Если юзер уже есть - грузим сразу
+  if (authStore.user) {
+    await fetchCards();
+  }
 });
+
+// А если юзера нет (страница только грузится), ждем появления
+watch(
+  () => authStore.user,
+  async (newUser) => {
+    if (newUser) {
+      await fetchCards();
+    }
+  }
+);
 
 // 2. Синхронизация: Local -> Store
 // Вызывается после завершения перетаскивания
@@ -171,7 +188,16 @@ const handleDeleteForever = (id: string) => {
     </header>
 
     <div class="desk-surface">
+        <!-- ВАРИАНТ 1: ПОКАЗЫВАЕМ СКЕЛЕТОНЫ ПРИ ЗАГРУЗКЕ -->
+        <div v-if="loading" class="cards-grid">
+          <NoteCardSkeleton v-for="n in 6" :key="n" />
+        </div>
+
+        <!-- ВАРИАНТ 2: ПОКАЗЫВАЕМ РЕАЛЬНЫЕ КАРТОЧКИ (только когда загрузка кончилась) -->
+        <!-- Можно использовать v-else или v-show="!loading" -->
+        <!-- Но лучше v-else, чтобы не было прыжков -->
       <VueDraggable
+        v-else
         v-model="draggableList"
         :animation="200"
         class="cards-grid"
