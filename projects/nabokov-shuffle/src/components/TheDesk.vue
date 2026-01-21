@@ -5,6 +5,7 @@ import { VueDraggable } from 'vue-draggable-plus';
 import { useShoeboxStore } from '../stores/shoebox';
 import NoteCard from './NoteCard.vue';
 import type { Card } from '../types'; // Важно для типизации
+import ConfirmModal from './ConfirmModal.vue';
 
 const store = useShoeboxStore();
 const { displayedCards, totalWordCount, loading, sortMode, showArchived,
@@ -13,6 +14,9 @@ const { addCard, updateCardContent, shuffleCards, fetchCards, setSortMode, updat
   changeCardColor, archiveCard, restoreCard, deleteForever,
   toggleColorFilter,
   resetFilters } = store;
+
+// Состояние модалки
+const showShuffleConfirm = ref(false);
 
 // --- ИСПРАВЛЕНИЕ: Локальный мутабельный массив для Drag-n-Drop ---
 const draggableList = ref<Card[]>([]);
@@ -34,6 +38,17 @@ const onDragEnd = () => {
   // Отправляем новый порядок в стор для сохранения
   updateOrder(draggableList.value);
 }
+
+// Функция клика по кнопке "Shuffle"
+const onShuffleClick = () => {
+  showShuffleConfirm.value = true;
+};
+
+// Функция, которая реально запускает шаффл (вызывается из модалки)
+const confirmShuffle = async () => {
+  showShuffleConfirm.value = false;
+  await store.shuffleCards();
+};
 </script>
 
 <template>
@@ -64,7 +79,7 @@ const onDragEnd = () => {
             <!-- Кнопки действий (скрываем в архиве) -->
             <template v-if="!showArchived">
               <button class="btn-primary" @click="addCard()">+ <span class="desktop-text">Заметка</span></button>
-              <button class="btn-secondary" @click="shuffleCards()" title="Перемешать">🎲</button>
+              <button class="btn-secondary" @click="onShuffleClick()" title="Перемешать">🎲</button>
             </template>
           </div>
         </div>
@@ -158,6 +173,16 @@ const onDragEnd = () => {
         </div>
       </div>
     </div>
+
+    <ConfirmModal
+      :is-open="showShuffleConfirm"
+      title="Перемешать карточки?"
+      message="Это изменит текущий порядок всех заметок. Отменить действие нельзя."
+      confirm-text="Да, перемешать"
+      type="info"
+      @cancel="showShuffleConfirm = false"
+      @confirm="confirmShuffle"
+    />
   </div>
 </template>
 
