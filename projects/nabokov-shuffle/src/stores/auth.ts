@@ -36,7 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
         options: {
           // Важно: куда перенаправить пользователя после клика по ссылке
           // Для локальной разработки это localhost
-          emailRedirectTo: window.location.origin
+          emailRedirectTo: `${window.location.origin}/`,
         }
       })
       if (error) throw error
